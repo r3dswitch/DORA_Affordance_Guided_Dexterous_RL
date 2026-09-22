@@ -1,0 +1,28 @@
+# DORA — Python dependencies
+#
+# IMPORTANT:
+#  - `isaacgym` (NVIDIA Isaac Gym Preview) and the `bidexhands` base package
+#    are installed separately (see README "Requirements").
+#  - Install with:  pip install -r requirements.txt
+
+# Core
+numpy
+PyYAML
+torch>=1.10
+scipy
+matplotlib
+pillow
+einops
+pyquaternion
+tensorboard
+tqdm
+
+# Vision / geometry auxiliaries
+opencv-python
+pytorch3d
+
+# Optional (used by specific entry points / tools)
+rl-games            # train_rlgames.py
+TorchOpt            # meta-RL (MAML) utilities
+open3d              # point-cloud tooling
+torchvision         # CNN-based vision scaffolds

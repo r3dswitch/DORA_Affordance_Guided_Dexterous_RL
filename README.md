@@ -1,42 +1,215 @@
-### **Abstract**
+# DORA — Object Affordance-Guided Reinforcement Learning for Dexterous Robotic Manipulation
 
-This project describes the implementation of a reinforcement learning framework for robotic grasping, utilizing affordance information. The system integrates physical constraints from an off-board physics engine (Isaac Gym) with human-robot interaction data to predict graspable objects and dynamically refine action selection during exploration.
+[![arXiv](https://img.shields.io/badge/arXiv-2505.14819-B31B1B)](https://arxiv.org/abs/2505.14819)
+[![Project Website](https://img.shields.io/badge/Project-Website-blue)](https://sites.google.com/view/dora-manip)
+[![Simulator](https://img.shields.io/badge/Simulator-Isaac%20Gym-orange)](https://developer.nvidia.com/isaac-gym)
+[![License](https://img.shields.io/badge/License-BSD--3--Clause-blue)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.7+-3776AB)](https://www.python.org/)
 
----
+**Teaching multi-fingered robotic hands to grasp and manipulate objects the way humans do — by understanding *what objects are for*, not just where to touch them.**
 
-### **Introduction**
-
-#### **Why This Work Matters**
-This project aims to advance the field of robotics by developing a robust framework that leverages affordance information for effective grasping. By addressing challenges in integration, hardware stability, and inverse kinematics, this work contributes to autonomous robotic systems that can interact with the physical world more effectively.
-
----
-
-### **Motivation**
-
-The problem of enabling robots to handle objects correctly has been a long-standing challenge in robotics research. Accurate sensing of object properties is crucial for robots to perform tasks such as grasping, painting, and assembling. This project seeks to address this by augmenting state observations with affordance information, which provides insights into the physical properties of objects that can enhance decision-making processes.
+DORA is a reinforcement learning (RL) framework that feeds **object affordances** (the functional meaning of object regions — "grasp by the handle", "palm the flat face") directly into the policy learning pipeline of a high-DoF dexterous robotic hand. This reference implementation accompanies the peer-reviewed paper *[DORA: Object Affordance-Guided Reinforcement Learning for Dexterous Robotic Manipulation](https://arxiv.org/abs/2505.14819)* (arXiv:2505.14819, May 2025). See the [project website](https://sites.google.com/view/dora-manip) for visuals and demos.
 
 ---
 
-### **Methodology**
+## Why it matters
 
-This work was conducted using a reinforcement learning (RL) framework trained on data from an off-board physics engine (Isaac Gym). The system achieved significant results in handling affordance-aware objects across multiple environments. Key components include:
+Dexterous, multi-fingered hands are the most flexible — but also the hardest — manipulation hardware in robotics: high-dimensional control spaces and complex contact dynamics make standard RL painfully slow and often produce policies that "grab anywhere". Humans don't do that. We grasp a jug by its handle because that is what the handle is *for*.
 
-- **Integration Challenges**: Objects were difficult to perceive due to the lack of affordance information, requiring robust integration techniques.
-- **Hardware Stability Issues**: Hardware instability was mitigated by using a physical force model (Isaac Gym) and dynamic retraining during initial exploration.
-- **Inverse Kinematics**: Solving kinematic constraints enabled robots to perform precise actions while respecting object geometry.
+**DORA operationalizes that common sense.** By constraining exploration to affordance-aligned, physically feasible grasp candidates and shaping rewards toward functional contact, the agent learns **faster, more robustly, and semantically correctly** — dynamic refinement of action selection during exploration, with no privileged sim tricks at inference time.
 
-The final system demonstrated the ability to predict graspable objects with high accuracy and efficiently adapt its action space during exploration. The results are documented in [source_id]0</source_id>, where detailed experiments and findings are provided.
+**Headline results** (simulated, multi-fingered hand; PPO + SAC; see [Results](#results)):
 
----
-
-### **Results**
-
-A comprehensive evaluation on a range of environments revealed that affordance-aware robotic grasping outperformed baseline approaches by 20% in reward metrics. The system showed improved efficiency across multiple tasks, with the ability to dynamically refine actions based on object properties.
+- **+15.4 pp** average absolute improvement in task success rate over affordance-agnostic baselines
+- **Up to +29.6 pp** on semantically demanding tasks (functional jug grasping: SAC 28.3% → 57.9%)
+- **4.6–6.8%** faster training convergence (better sample efficiency)
+- Full ablation: with/without affordance on both PPO and SAC (checkpoints included)
 
 ---
 
-### **Conclusions**
+## What's in this repository
 
-This project successfully demonstrated the potential of integrating affordance information into robotics systems using reinforcement learning techniques. By addressing challenges in physical integration and inverse kinematics, this work contributes new insights for future research in robotic manipulation.
+This is the **training and evaluation codebase** developed as part of the thesis that produced the DORA paper. It is a self-contained RL research framework built on top of the NVIDIA **Isaac Gym / BiDexHands** ecosystem, and ships with:
+
+| Component | Description |
+|---|---|
+| **Affordance-guided task** | `tasks/arnie_affordance.py` + `cfg/ArnieAffordance.yaml` — the core affordance-aware dexterous manipulation environment |
+| **RL algorithm zoo** | 20+ algorithms: on-policy (PPO, TRPO, DDPG, TD3, SAC), multi-agent (HAPPO, MAPPO, IPPO, MADDPG, HATRPO), meta (MAML, MTRL), offline (IQL, BCQ, TD3+BC) |
+| **~40 task environments** | Dexterous manipulation tasks incl. affordance grasping, hand re-orientation, tool use, in-hand manipulation (see [Tasks](#tasks)) |
+| **Assets** | Bundled object/robot assets (`assets/*.zip`) |
+| **Trained checkpoints** | `checkpoints/` — `happo_with` / `happo_without`, `mappo_with` / `mappo_without` (affordance ablations) |
+| **Reproduction scripts** | `scripts/run_experiments.sh` for seed-swept, reproducible training |
+| **Visualization & diagnostics** | `results/`, TensorBoard logging in `logs/` |
+
+### How the affordance guidance works
+
+Three interacting components (full details in the paper):
+
+1. **Affordance-guided functional grasp generation** — objects are annotated with affordance maps; grasp candidates are generated by optimizing force-closure, hand–object interaction, and robot constraints, then classified into functional grasp types (e.g. `HandleGrasp`, `WrapGrasp`) using a novel **voting-based classification** over contact semantic maps.
+2. **Structured RL pipeline** — feasible candidates (motion-planned, collision-free) are injected into the policy as **hard constraints + priors**, with **sub-task transition management** (reach → grasp → lift → re-orient) and dynamically switched reward functions per stage.
+3. **Affordance-aware reward design** — a reward combining an affordance-centric fingertip proximity term, task-specific sub-goals, and smoothness penalties:
+
+   $$R(s,a) = w_a R_{affordance} + w_t R_{task} - w_p R_{penalty}$$
 
 ---
+
+## Results
+
+Overall task success rate (%) — **with** vs **without** affordance guidance, across RL algorithms:
+
+| Environment | Without (PPO) | Without (SAC) | With (PPO) | With (SAC) |
+|---|---|---|---|---|
+| Task 1 — Cube grasp & lift | 55.3 ± 1.8 | 51.8 ± 1.3 | **73.2 ± 1.1** | **68.3 ± 0.5** |
+| Task 2 — Jug functional grasp & lift | 37.9 ± 0.5 | 28.3 ± 1.1 | **65.6 ± 1.1** | **57.9 ± 0.7** |
+| Task 3 — Hammer re-orientation & use | 68.6 ± 0.5 | 75.0 ± 1.2 | **69.3 ± 0.6** | **75.1 ± 1.1** |
+
+- **+15.4 pp** average absolute improvement across tasks and algorithms.
+- **+27.7 pp** (PPO) and **+29.6 pp** (SAC) on Task 2 — the semantically demanding jug-grasp — where affordance understanding matters most.
+- Training convergence **≈ 4.6% faster for PPO** and **≈ 6.8% faster for SAC**.
+
+*Full ablations, sub-task success rates (grasp / lift / re-orient), and training-time analysis are in the paper (Sections IV–V, Appendices).*
+
+---
+
+## Requirements
+
+- **Python 3.7+**
+- **NVIDIA GPU + CUDA** (≥ 11.x) — GPU-parallel physics simulation
+- **NVIDIA Isaac Gym** (Preview) — the physics engine (PhysX / Flex); install separately per [Isaac Gym docs](https://developer.nvidia.com/isaac-gym)
+- **BiDexHands framework** (`bidexhands` Python package) — the base RL framework this project extends
+- **PyTorch** (+ torchvision if using vision auxiliaries)
+
+Core third-party Python dependencies are declared in [`requirements.txt`](requirements.txt).
+
+> Note: this repository is the *project-specific layer* on top of Isaac Gym + BiDexHands. It assumes those two base stacks are installed and importable (see the `isaacgym` / `bidexhands` imports in the entry points).
+
+---
+
+## Quick start
+
+```bash
+# 1. Install Isaac Gym and the BiDexHands framework (see links above).
+# 2. Clone this repository into your Isaac Gym / BiDexHands workspace:
+
+git clone https://github.com/r3dswitch/thesis_public.git
+cd thesis_public
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Provision assets (object / robot URDFs)
+unzip assets/assets_tiny.zip -d assets
+unzip assets/Cube.zip -d assets
+```
+
+**Train** (single run):
+
+```bash
+python train.py --task <TASK> --algo <ALGO> --num_envs 128 --seed 0
+```
+
+**Train** (reproducible seed sweep — 3 seeds):
+
+```bash
+bash scripts/run_experiments.sh <TASK> <ALGO> <NUM_ENVS>
+```
+
+**Evaluate** a trained policy:
+
+```bash
+python train.py --task <TASK> --algo <ALGO> --model_dir <path-to-checkpoint>
+```
+
+**Train with rl_games** (alternative RL engine):
+
+```bash
+python train_rlgames.py --task <TASK> --algo ppo
+```
+
+Supported algorithms: `happo, hatrpo, mappo, ippo, maddpg, sac, td3, trpo, ppo, ddpg, mtppo, random, mamlppo, td3_bc, bcq, iql, ppo_collect`.
+
+---
+
+## Tasks
+
+The task catalog spans generalist dexterous manipulation (inherited from the base framework) plus the affordance-focused environments central to this work:
+
+**Affordance / DORA tasks**
+- `ArnieAffordance` — affordance-guided functional grasping (`tasks/arnie_affordance.py`)
+- `ArnieGraspAndPour`, `ArnieGraspSingle`, `ArnieHammer`, `ArnieMicrowave(Dual)`, `ArnieDrawer(Dual)`, `ArnieReach`, `ArnieSwitch` — multi-stage manipulation scenarios
+
+**Generalist dexterous manipulation (shadow-hand family)**
+`ShadowHandGraspAndPlace`, `ShadowHandReOrientation`, `ShadowHandPushBlock`, `ShadowHandBlockStack`, `ShadowHandBottleCap`, `ShadowHandPen`, `ShadowHandKettle`, `ShadowHandDoorOpen/Close`, `ShadowHandScissors`, `ShadowHandSwingCup`, `ShadowHandCatch*`, `ShadowHandOver`, `ShadowHandLiftUnderarm`, `ShadowHandPointCloud`, `ShadowHandSwitch`, `ShadowHandTwoCatchUnderarm`
+
+**Other**
+`CubeLift`, `HammerOrient`, `Microwave`, `YCBPitcher`, `Demo`, `Rot`, `Vis`, `AllegroHand*`, `ur5`, `vis_live`
+
+---
+
+## Repository layout
+
+```
+thesis_public/
+├── train.py                  # Main entry point (all algorithms via --algo)
+├── train_rlgames.py          # rl_games-based training (PPO)
+├── train_customize.py        # Custom-training entry
+├── rot.py / test.py          # Auxiliary utilities
+├── tasks/                    # Task environments (Arnie affordance tasks, shadow-hand suite, ...)
+├── algorithms/               # RL algorithm implementations (rl/, marl/, mtrl/, metarl/, offrl/)
+├── cfg/                      # Task + algorithm YAML configs
+├── helpers/                  # Simulation / scene-creation helpers
+├── utils/                    # Config, parsing, logging, tensor helpers
+├── scripts/                  # Experiment sweep scripts
+├── assets/                   # Object / robot assets (zipped)
+├── checkpoints/              # Trained policy checkpoints (affordance ablations)
+├── results/                  # Evaluation figures
+├── logs/                     # TensorBoard training logs
+└── requirements.txt          # Python dependencies
+```
+
+---
+
+## Reproducibility
+
+- Every experiment is **seed-defined** (`--seed`) and config-driven (`cfg/*.yaml`), enabling exact recreation of the published results.
+- `scripts/run_experiments.sh` runs the canonical 3-seed sweep.
+- Domain-randomization toggles are available per task (`--randomize`, `cfg/<task>.yaml`).
+- TensorBoard curves, model checkpoints, and result figures are all stored under `logs/`, `checkpoints/`, and `results/`.
+
+---
+
+## Citation
+
+If you use this work in research or a commercial evaluation, please cite:
+
+```bibtex
+@misc{zhang2025doraobjectaffordanceguidedreinforcement,
+  title={DORA: Object Affordance-Guided Reinforcement Learning for Dexterous Robotic Manipulation},
+  author={Lei Zhang and Soumya Mondal and Zhenshan Bing and Kaixin Bai and Diwen Zheng and Zhaopeng Chen and Alois Christian Knoll and Jianwei Zhang},
+  year={2025},
+  eprint={2505.14819},
+  archivePrefix={arXiv},
+  primaryClass={cs.RO},
+  url={https://arxiv.org/abs/2505.14819},
+}
+```
+
+Also available as [`CITATION.cff`](CITATION.cff) (GitHub-native citation support).
+
+---
+
+## License & attribution
+
+- This project's code is released under the **BSD-3-Clause** license — see [`LICENSE`](LICENSE).
+- The repository derives from NVIDIA's **Isaac Gym / BiDexHands** ecosystem, which is itself BSD-3-Clause; NVIDIA's copyright headers are retained in the upstream-derived files.
+- **Asset caveat:** bundled URDF/mesh assets in `assets/` may be subject to their original third-party licenses. Verify asset licensing before commercial redistribution.
+
+---
+
+## Contact
+
+**Soumya Mondal** — co-author of the DORA paper and author of this implementation.
+
+For research questions, collaboration, or commercial licensing/building on this work, open an [issue](https://github.com/r3dswitch/thesis_public/issues) or reach out via the [project website](https://sites.google.com/view/dora-manip).
+
+**Links:** [Paper (arXiv)](https://arxiv.org/abs/2505.14819) · [Full-text (alphaXiv)](https://www.alphaxiv.org/abs/2505.14819) · [Project website](https://sites.google.com/view/dora-manip)

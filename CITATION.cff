@@ -1,0 +1,60 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite the associated paper as follows."
+title: "DORA: Object Affordance-Guided Reinforcement Learning for Dexterous Robotic Manipulation"
+abstract: >-
+  An object affordance-guided reinforcement learning framework that enables a multi-fingered
+  robotic hand to learn human-like manipulation strategies more efficiently. Affordance maps
+  generate semantically meaningful grasp-pose candidates used as policy constraints and priors,
+  combined with a voting-based grasp classification mechanism and an affordance-aware reward.
+  Improves task success rates by an average of 15.4% over baselines across cube grasping, jug
+  grasping/lifting, and hammer use.
+keywords:
+  - robotics
+  - reinforcement learning
+  - dexterous manipulation
+  - object affordances
+  - grasping
+license: BSD-3-Clause
+authors:
+  - family-names: Zhang
+    given-names: Lei
+  - family-names: Mondal
+    given-names: Soumya
+  - family-names: Bing
+    given-names: Zhenshan
+  - family-names: Bai
+    given-names: Kaixin
+  - family-names: Zheng
+    given-names: Diwen
+  - family-names: Chen
+    given-names: Zhaopeng
+  - family-names: Knoll
+    given-names: Alois Christian
+  - family-names: Zhang
+    given-names: Jianwei
+preferred-citation:
+  type: article
+  title: "DORA: Object Affordance-Guided Reinforcement Learning for Dexterous Robotic Manipulation"
+  authors:
+    - family-names: Zhang
+      given-names: Lei
+    - family-names: Mondal
+      given-names: Soumya
+    - family-names: Bing
+      given-names: Zhenshan
+    - family-names: Bai
+      given-names: Kaixin
+    - family-names: Zheng
+      given-names: Diwen
+    - family-names: Chen
+      given-names: Zhaopeng
+    - family-names: Knoll
+      given-names: Alois Christian
+    - family-names: Zhang
+      given-names: Jianwei
+  year: 2025
+  month: 5
+  eprint: "2505.14819"
+  archivePrefix: arXiv
+  primaryClass: cs.RO
+  url: "https://arxiv.org/abs/2505.14819"
